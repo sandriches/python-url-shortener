@@ -1,6 +1,8 @@
+import os
 from datetime import date
 from flask import Flask, request, Response, redirect
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 import string, secrets
 
 # TODO - tests
@@ -8,59 +10,77 @@ import string, secrets
 SHORT_URL_LENGTH=5
 MAX_LENGTH_URL=50
 
+basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 db = SQLAlchemy(app)
 app.config["DEBUG"] = True
 
 
 class Url(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    original_url = db.Column(db.string(MAX_LENGTH_URL))
-    shortened_url = db.Column(db.string(SHORT_URL_LENGTH))
+    original_url = db.Column(db.String(MAX_LENGTH_URL), primary_key=True)
+    shortened_url = db.Column(db.String(SHORT_URL_LENGTH))
     hits = db.Column(db.Integer)
-    created_on = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
     # TODO - check best practice for repr
     def __repr__(self):
-        return "(%s, %s, %s, %s, %s)" % (self.id, self.original_url, self.shortened_url, self.hits, self.created_on)
-        # return '%s %s %s %s %s' % (
-        #     self.__class__.__name__, self.urlconf_name, self.app_name,
-        #     self.namespace, self.regex.pattern)
+        return "(Original Url: %s, Shortened Url: %s, Hits:  %s, Created At: %s)" % (self.original_url, self.shortened_url, self.hits, self.created_at)
+
+db.create_all()
+
+# Response here is the part of the query we need
+def query_db(field, filterby, response="all"):
+    if (response == "all"):
+        result = db.session.query(getattr(Url,field)==filterby).all()
+        # result = Url.query.filter(getattr(Url,field)==filterby).all()
+    else:
+        result = db.session.query(getattr(Url,response)).filter(getattr(Url,field)==filterby).all()
+    return result
+
+def add_db(original_url, shortened_url):
+    new_url = Url(original_url=original_url, shortened_url=shortened_url, hits=0)
+    db.session.add(new_url)
+    db.session.commit()
 
 def isShortenedUrl(shortcode):
-    # Check DB for url, if so return original url, else return false
-    return "https://www.google.com"
+    result = query_db("shortened_url", shortcode, "original_url")
+    if result:
+        return "".join(result[0])
+    return False
 
-def isAlreadyShortened(long_url):
-    # TODO
-    # return False
-    return "https://www.google.com"
+def lookupExistingUrl(long_url):
+    result = query_db("original_url", long_url, "shortened_url")
+    if result:
+        return "".join(result[0])
+    return False
 
 def shortenUrl(long_url):
     shortenedUrl = ("").join(secrets.choice(string.ascii_letters + string.digits) for _ in range(SHORT_URL_LENGTH))
-    db.session.add(Url(1, long_url, shortenedUrl))
-    db.session.commit()
     return shortenedUrl
 
 # TODO - lookup info from DB
 def lookupStats(shortcode):
-    db.session.query(Url).filter_by(shortened_url == shortcode)
-    # Url.query.filter(shortened_url == shortcode)
-    return {"hits": 1, "url": "some_url.com", "createdOn": date(year=2022, month=6, day=26)}
+    return query_db("shortened_url", shortcode)
 
 
 @app.route('/shorten', methods=['POST'])
 def shorten():
+    # Check if request has correct params
     if (request.args['URL']):
-        alreadyShortenedUrl = isAlreadyShortened(request.args['URL'])
+        # Check if already exists
+        alreadyShortenedUrl = lookupExistingUrl(request.args['URL'])
         if (alreadyShortenedUrl):
-            # TODO - add redirect to existing url
-            return redirect(location=alreadyShortenedUrl, code=303)
+            return Response(status=303, response="Location: /urls/" + alreadyShortenedUrl)
+            # return redirect(location=alreadyShortenedUrl, code=303)
 
-        # Check if url is already shortened - TODO
-        return Response(status=201, response="New location: " + shortenUrl(request.args['URL']))
-    return "no url m8"
+        # Shorten and add to DB
+        shortenedUrl = shortenUrl(request.args['URL'])
+        add_db(request.args['URL'], shortenedUrl)
+        return Response(status=201, response="New location: " + shortenedUrl)
+
+    # Error handling - no url
+    return Response(status=404, response="no url m8")
 
 
 @app.route('/urls/<url>', methods=['GET'])
@@ -70,7 +90,9 @@ def getUrls(url):
         # Change to 404 when done
         return Response(status=204, response="URL doesn't exist")
     # Add redirect
-    return redirect(originalUrl, code=307)
+    # TODO - update hits
+    return Response(status=307, response="Original URL: " + originalUrl)
+    # return redirect(originalUrl, code=307)
 
 
 @app.route('/stats/<shortcode>')
