@@ -1,2 +1,7 @@
 # python-url-shortener
-url shortener service using python flask
+Url shortener service using python flask and SQLite
+
+# Setup
+```
+python main.py
+```
