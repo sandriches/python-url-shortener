@@ -1,5 +1,8 @@
 from main import app
+from globals import SHORT_URL_LENGTH
 import secrets, string, json
+
+# TODO - More elegant test framework (currently stops on failure and doesn't run the remaining tests)
 
 TEST_URL_LENGTH=10
 
@@ -12,7 +15,7 @@ with app.test_client() as ta:
     # Create URL
     result1 = ta.post('/shorten?URL=' + test_url)
     assert(result1.status_code == 201)
-    shortcode_result = result1.data.decode('UTF-8')[-5:]
+    shortcode_result = result1.data.decode('UTF-8')[-SHORT_URL_LENGTH:]
 
     # Repeat with same URL
     result2 = ta.post('/shorten?URL=' + test_url)

@@ -5,6 +5,9 @@ from globals import MAX_LENGTH_URL, SHORT_URL_LENGTH
 
 db = SQLAlchemy(app)
 
+# TODO - simplify DB calls. one function for a query, then chain queries together where longer, more specific
+# tasks are required
+
 class Url(db.Model):
     original_url = db.Column(db.String(MAX_LENGTH_URL), primary_key=True)
     shortened_url = db.Column(db.String(SHORT_URL_LENGTH))
@@ -24,6 +27,7 @@ def query_db(field, filterby, response="all"):
         result = db.session.query(getattr(Url,response)).filter(getattr(Url,field)==filterby).all()
     return result
 
+# TODO - wrap in try/catch
 def add_db(original_url, shortened_url):
     new_url = Url(original_url=original_url, shortened_url=shortened_url, hits=0)
     db.session.add(new_url)
