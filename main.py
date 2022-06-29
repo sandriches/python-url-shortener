@@ -3,9 +3,6 @@ from flask import Flask, request, Response
 from helpers import shortenUrl, row2dict
 from globals import MAX_LENGTH_URL
 
-# TODO - Database is unavailable or misconfigured?
-# TODO - finish README
-
 basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
@@ -53,14 +50,16 @@ def shorten():
 def getUrls(url):
     originalUrl = isShortenedUrl(url)
     if not originalUrl:
-        # Change to 404 when done
         return Response(status=404, response="Shortcode URL doesn't exist")
+
+    # Increase hits count
     add_to_hits(originalUrl)
     return Response(status=307, response="Original URL: " + originalUrl)
 
 @app.route('/stats/<shortcode>')
 def getStats(shortcode):
     if (isShortenedUrl(shortcode)):
+        # Convert to JSON for response
         response = row2dict(lookupStats(shortcode))
         return Response(json.dumps(response), status=200, mimetype='application/json')
     return Response(status=404, response="Url doesn't exist")

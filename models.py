@@ -16,6 +16,7 @@ class Url(db.Model):
 
 db.create_all()
 
+# First the field that we are searching for, then the match that we want to filter by, then the response (piece of data) that we need
 def query_db(field, filterby, response="all"):
     if (response == "all"):
         result = Url.query.filter(getattr(Url,field)==filterby).first()
